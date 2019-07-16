@@ -76,7 +76,15 @@ const messageSchema = new mongoose.Schema ({
     time: {
         type: String,
         required: [true, "Time is required"]
-    }
+    },
+    sending_user: {
+        type: String,
+        required: [true, "Sending user is required"]
+    },
+    users: [{
+        type: mongoose.Schema.Types.String,
+        ref: "User"
+    }]
 });
 
 const activitySchema = new mongoose.Schema ({
@@ -84,9 +92,13 @@ const activitySchema = new mongoose.Schema ({
         type: String,
         required: [true, "Event name is required"]
     },
-    address: {
+    host: {
+        type: String,
+        required: [true, "Event host is required"]
+    },
+    place: {
         type: Object,
-        required: [true, "Event address is required"]
+        required: [true, "Event place is required"]
     },
     age: {
         type: String,
@@ -103,6 +115,10 @@ const activitySchema = new mongoose.Schema ({
     date: {
         type: String,
         required: [true, "Event date is required"]
+    },
+    time: {
+        type: String,
+        required: [true, "Event time is required"]
     },
     message_group: {
         type: Array, // list of user IDs

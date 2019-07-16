@@ -1,9 +1,9 @@
 const bodyParser = require("body-parser");
 const express = require("express");
-//const cors = require("cors");
 const passport = require("passport");
 const passportLocal = require("passport-local");
 const session = require("express-session");
+const WebSocket = require("ws");
 const model = require("./model.js");
 
 var server = express();
@@ -96,13 +96,6 @@ server.get("/profiles/:id", function(request, response){
     });
 });
 
-
-// Get Profile Image
-
-server.get("profiles/image", function(request, response) {
-    response.json(request.profile.picture);
-});
-
 // Create Profile
 
 server.post("/profiles", function(request, response) {
@@ -150,59 +143,6 @@ server.put("/profiles/:id", function(request, response){
     });
 });
 
-server.get("/users/user_name", (request, response) => {
-    if (!request.user) {
-        response.sendStatus(401);
-        return;
-    }
-    response.json(request.user.user_name);
-});
-
-server.get("/users/city", (request, response) => {
-    console.log(request.user);
-    if (!request.user) {
-        response.sendStatus(401);
-        return;
-    }
-    response.json(request.user.city);
-})
-
-// List Activities
-passport.serializeUser(function(user, done){
-    done(null, user._id);
-
-});
-
-passport.deserializeUser(function(id, done){
-    model.Users.findOne({_id: id}).then(function(user){
-        done(null, user);
-    }, function(error){
-        done(error);
-    });
-});
-
-passport.use(new passportLocal.Strategy({
-    usernameField: "email",
-    passwordField: "plainPassword"
-}, function(email, plainPassword, done){
-    model.Users.findOne({email: email}).then(function(user){
-        if (!user){
-            // failed
-            return done(null, false);
-        }
-        user.verifyEncryptedPassword(plainPassword, function(valid){
-            if (valid) {
-                //successful
-                return done(null, user);
-            } else {
-                //failed
-                return done(null, false);
-            }
-        });
-    }, function(error){
-        done(error);
-    });
-}));
 
 //Activity endpoints
 
@@ -266,32 +206,6 @@ server.delete("/activities/:id", function(request, response){
     });
 });
 
-// Session Enpoints
-
-// Get Session
-
-server.get("/session", function(request, response) {
-    if(request.user) {
-        // Logged In
-        response.sendStatus(200);
-    } else {
-        // Not Logged In
-        response.sendStatus(401);
-    }
-});
-
-server.post("/session", passport.authenticate("local"), function (request, response) {
-    response.sendStatus(201);
-});
-
-server.delete("/logout", function(request, response) {
-    if(request.user) {
-        request.logout();
-        response.sendStatus(200);
-    } else {
-        response.sendStatus(403);
-    }
-});
 server.put("/activities/:id", function(request, response){
     model.Activities.findById(request.params.id).then(function(activity){
         if (activity == null){
@@ -336,6 +250,78 @@ server.put("/activities/:id", function(request, response){
     });
 });
 
+//List messages
+
+server.get("/messages", function (request, response) {
+    if(!request.user) {
+        response.sendStatus(401);
+        return;
+    }
+    model.Messages.find({}).then(function (messages) {
+        response.json(messages);
+    });
+});
+
+// Create Message
+
+server.post("/messages", function (request, response) {
+    console.log("Body:", request.body);
+
+    let message = new model.Messages({
+        content: request.body.content,
+        date: request.body.date,
+        time: request.body.time,
+        sending_user: request.body.sending_user,
+        users: request.body.users
+    });
+
+    message.save().then(function () {
+        response.sendStatus(201);
+        sendAllMessagesToAllSockets();
+    }, function(err) {
+        if(err.errors) {
+            var errorMessages = {};
+            for(var e in err.errors) {
+                errorMessages[e] = err.errors[e].errorMessages;
+            }
+
+            console.log("Error Saving Message", errorMessages);
+            response.status(422).json(errorMessages);
+        } else {
+            console.log("Unexpected Error Saving Message");
+            response.sendStatus(500);
+        }
+    });
+});
+
+
+// Session Enpoints
+
+// Get Session
+
+server.get("/session", function(request, response) {
+    if(request.user) {
+        // Logged In
+        response.sendStatus(200);
+    } else {
+        // Not Logged In
+        response.sendStatus(401);
+    }
+});
+
+server.post("/session", passport.authenticate("local"), function (request, response) {
+    response.sendStatus(201);
+});
+
+server.delete("/logout", function(request, response) {
+    if(request.user) {
+        request.logout();
+        response.sendStatus(200);
+    } else {
+        response.sendStatus(403);
+    }
+});
+
 
 //Users endpoints
 
@@ -374,6 +360,23 @@ server.post("/users", function(request, response){
     });
 });
 
+server.get("/users/user_name", (request, response) => {
+    if (!request.user) {
+        response.sendStatus(401);
+        return;
+    }
+    response.json(request.user.user_name);
+});
+
+server.get("/users/city", (request, response) => {
+    console.log(request.user);
+    if (!request.user) {
+        response.sendStatus(401);
+        return;
+    }
+    response.json(request.user.city);
+});
+
 server.delete("/users/:id", function(request, response){
     model.Users.findByIdAndDelete(request.params.id).then(function(){
         response.status(204);
@@ -384,7 +387,59 @@ server.delete("/users/:id", function(request, response){
 });
 
 
-
-server.listen(server.get("port"), function () {
+var serverToWebSockets = server.listen(server.get("port"), function () {
     console.log("Listening...");
 });
+
+////////////// Web Sockets /////////////////
+
+const wss = new WebSocket.Server({ server: serverToWebSockets });
+
+var broadcastToAllSockets = function(data) {
+    wss.clients.forEach(function (client) {
+        if(client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(data));
+        }
+    });
+};
+
+var sendAllMessagesToAllSockets = function() {
+    model.Messages.find({}).then(function (messages) {
+        let data = {
+            resource: "message",
+            action: "list",
+            data: messages  
+        };
+        broadcastToAllSockets(data);
+    });
+};
+
+wss.on("connection", function connection(ws) {
+    ws.on("message", function incoming(data) {
+        data = JSON.parse(data);
+        console.log("DATA received from client:", data);
+
+        if(data.action == "list" && data.resource == "message") {
+            // Send list of messages
+            model.Messages.find({}).then(function (messages) {
+                let data = {
+                    resource: "message",
+                    action: "list",
+                    data: messages 
+                };
+                ws.send(JSON.stringify(data));
+            });
+        }
+        if(data.action == "delete" && data.resource == "message") {
+            model.Messages.find({}).then(function (messages) {
+                let data = {
+                    resource: "message",
+                    action: "deleteAll",
+                    data: messages
+                };
+                ws.send(JSON.stringify(data));
+            });
+        }
+    });
+});
+
