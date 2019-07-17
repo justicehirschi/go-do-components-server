@@ -48,7 +48,7 @@ var userSchema = new mongoose.Schema ({
 });
 
 const profileSchema = new mongoose.Schema ({
-    username: {
+    user_name: {
         type: String  
     },
     picture: {
@@ -106,8 +106,7 @@ const activitySchema = new mongoose.Schema ({
         required: [true, "Event place is required"]
     },
     age: {
-        type: String,
-        required: [true, "Event age range is required"]
+        type: String
     },
     description: {
         type: String,

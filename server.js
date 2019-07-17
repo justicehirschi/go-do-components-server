@@ -209,7 +209,7 @@ server.put("/activities/:id", function(request, response){
     model.Activities.findById(request.params.id).then(function(activity){
         if (activity == null){
             response.status(404);
-            response.json({msg: `There is no song with the id of ${request.params.id}`});
+            response.json({msg: `There is no activity with the id of ${request.params.id}`});
         } else {
             if (request.body.name != undefined){
                 activity.name = request.body.name;
@@ -383,6 +383,22 @@ server.delete("/users/:id", function(request, response){
         response.send();
     }).catch(function(error){
         response.status(400).json({msg: error.message});
+    });
+});
+
+server.put("/users/:user_name", function(request, response) { 
+    if(!request.user) {
+        response.sendStatus(401);
+        return;
+    }  
+    model.Users.findOne({'user_name': request.params.user_name}).then(function(user) {
+        if(user == "null") {
+            response.sendStatus(404);
+            response.json({msg: `There is no user with the user_name of ${request.params.user_name}`});
+        } else {
+            response.status(200);
+            response.json({user: user});
+        }
     });
 });
 
