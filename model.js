@@ -36,15 +36,20 @@ var userSchema = new mongoose.Schema ({
     city: {
         type: Object,
         required: [true, "City is required"]
+    },
+    messages: {
+        type: Array,
+        required: [true, "Messages is required"]
+    },
+    users_chats: {
+        type: Array,
+        required: [true, "User_chats is required"]
     }
 });
 
 const profileSchema = new mongoose.Schema ({
-    user_name: {
-        type: String
-    },
-    email: {
-        type: String
+    username: {
+        type: String  
     },
     picture: {
         type: String
