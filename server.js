@@ -83,11 +83,11 @@ server.get("/profiles", function(request, response) {
 
 // Retrieve profile
 
-server.get("/profiles/:id", function(request, response){
-    model.Profiles.findById(request.params.id).then(function(profile){
+server.get("/profiles/:user_name", function(request, response){
+    model.Profiles.find({user_name: request.body.user_name}).then(function(profile){
         if (profile == null){
             response.status(404);
-            response.json({msg: `There is no profile with the id of ${request.params.id}`});
+            response.json({msg: `There is no profile with the user_name of ${request.body.user_name}`});
         } else {
             response.json({profile: profile});
         }
@@ -101,7 +101,6 @@ server.get("/profiles/:id", function(request, response){
 server.post("/profiles", function(request, response) {
     model.Profiles.create({
         user_name: request.body.user_name,
-        email: request.body.email,
         picture: request.body.picture,
         bio: request.body.bio,
         attended_events: request.body.attended_events,
@@ -332,10 +331,11 @@ server.post("/users", function(request, response){
         user_name: request.body.user_name,
         email: request.body.email,
         age: request.body.age,
-        city: request.body.city
+        city: request.body.city,
+        messages: request.body.messages,
+        user_chats: request.body.user_chats
     });
 
-    console.log(request.body.password);
     user.setEncryptedPassword(request.body.password, function() {
         user.save().then(function(){
             response.sendStatus(201);
