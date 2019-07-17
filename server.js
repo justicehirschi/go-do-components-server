@@ -182,6 +182,7 @@ server.post("/activities", function(request, response){
         description: request.body.description,
         main_category: request.body.main_category,
         date: request.body.date,
+        time: request.body.time,
         message_group: request.body.message_group,
         included_categories: request.body.included_categories,
         attendees: request.body.attendees
@@ -424,7 +425,7 @@ var sendAllMessagesToAllSockets = function() {
         let data = {
             resource: "message",
             action: "list",
-            data: messages  
+            data: messages
         };
         broadcastToAllSockets(data);
     });
@@ -441,7 +442,7 @@ wss.on("connection", function connection(ws) {
                 let data = {
                     resource: "message",
                     action: "list",
-                    data: messages 
+                    data: messages
                 };
                 ws.send(JSON.stringify(data));
             });
@@ -458,4 +459,3 @@ wss.on("connection", function connection(ws) {
         }
     });
 });
-
