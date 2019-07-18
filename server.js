@@ -397,8 +397,19 @@ server.put("/users/:user_name", function(request, response) {
             response.sendStatus(404);
             response.json({msg: `There is no user with the user_name of ${request.params.user_name}`});
         } else {
-            response.status(200);
-            response.json({user: user});
+            user.first_name = request.body.first_name;
+            user.last_name = request.body.last_name;
+            user.email = request.body.email;
+            user.password = request.body.password;
+            user.age = request.body.age;
+            user.city = request.body.city;
+            user.messages = request.body.message;
+            user.user_chats = request.body.chats;
+
+            user.save().then(function () {
+                console.log("User with id:", request.params.id, "edited.");
+                response.sendStatus(200);
+            });
         }
     });
 });
