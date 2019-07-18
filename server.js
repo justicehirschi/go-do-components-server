@@ -84,10 +84,10 @@ server.get("/profiles", function(request, response) {
 // Retrieve profile
 
 server.get("/profiles/:user_name", function(request, response){
-    model.Profiles.find({user_name: request.body.user_name}).then(function(profile){
+    model.Profiles.findOne({'user_name' : request.params.user_name}).then(function(profile){
         if (profile == null){
             response.status(404);
-            response.json({msg: `There is no profile with the user_name of ${request.body.user_name}`});
+            response.json({msg: `There is no profile with the username of ${request.params.user_name}`});
         } else {
             response.json({profile: profile});
         }
@@ -113,11 +113,11 @@ server.post("/profiles", function(request, response) {
     });
 });
 
-server.put("/profiles/:id", function(request, response){
-    model.Profiles.findById(request.params.id).then(function(profile){
+server.put("/profiles/:user_name", function(request, response){
+    model.Profiles.findOne({'user_name' : request.params.user_name}).then(function(profile){
         if (profile == null){
             response.status(404);
-            response.json({msg: `There is no profile with the id of ${request.params.id}`});
+            response.json({msg: `There is no profile with the id of ${request.params.user_name}`});
         } else {
             if (request.body.attended_events != undefined){
                 profile.attended_events = request.body.attended_events;
@@ -177,7 +177,8 @@ server.get("/activities/:id", function(request, response){
 server.post("/activities", function(request, response){
     model.Activities.create({
         name: request.body.name,
-        address: request.body.address,
+        host: request.body.host,
+        place: request.body.place,
         age: request.body.age,
         description: request.body.description,
         main_category: request.body.main_category,
@@ -210,7 +211,7 @@ server.put("/activities/:id", function(request, response){
     model.Activities.findById(request.params.id).then(function(activity){
         if (activity == null){
             response.status(404);
-            response.json({msg: `There is no activity with the id of ${request.params.id}`});
+            response.json({msg: `There is no event with the id of ${request.params.id}`});
         } else {
             if (request.body.name != undefined){
                 activity.name = request.body.name;
@@ -367,6 +368,25 @@ server.get("/users/user_name", (request, response) => {
         return;
     }
     response.json(request.user.user_name);
+});
+
+server.get("/users/:user_name", function(request, response){
+    if (!request.user){
+        response.sendStatus(401);
+        return;
+    } else {
+        model.Users.findOne({ 'user_name': request.params.user_name}).then(function(user){
+            console.log(user);
+            if (user == null){
+                response.status(404);
+                response.json({msg: `There is no user with the username of ${request.params.user_name}`});
+            } else {
+                response.json({user: user});
+            }
+        }).catch(function(error){
+            response.status(400).json({msg: error.message});
+        });
+    }
 });
 
 server.get("/users/city", (request, response) => {
