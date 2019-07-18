@@ -101,7 +101,6 @@ server.get("/profiles/:user_name", function(request, response){
 server.post("/profiles", function(request, response) {
     model.Profiles.create({
         user_name: request.body.user_name,
-        email: request.body.email,
         picture: request.body.picture,
         bio: request.body.bio,
         attended_events: request.body.attended_events,
@@ -334,10 +333,11 @@ server.post("/users", function(request, response){
         user_name: request.body.user_name,
         email: request.body.email,
         age: request.body.age,
-        city: request.body.city
+        city: request.body.city,
+        messages: request.body.messages,
+        user_chats: request.body.user_chats
     });
 
-    console.log(request.body.password);
     user.setEncryptedPassword(request.body.password, function() {
         user.save().then(function(){
             response.sendStatus(201);
@@ -407,6 +407,22 @@ server.delete("/users/:id", function(request, response){
     });
 });
 
+server.put("/users/:user_name", function(request, response) { 
+    if(!request.user) {
+        response.sendStatus(401);
+        return;
+    }  
+    model.Users.findOne({'user_name': request.params.user_name}).then(function(user) {
+        if(user == "null") {
+            response.sendStatus(404);
+            response.json({msg: `There is no user with the user_name of ${request.params.user_name}`});
+        } else {
+            response.status(200);
+            response.json({user: user});
+        }
+    });
+});
+
 
 var serverToWebSockets = server.listen(server.get("port"), function () {
     console.log("Listening...");
@@ -429,7 +445,7 @@ var sendAllMessagesToAllSockets = function() {
         let data = {
             resource: "message",
             action: "list",
-            data: messages  
+            data: messages
         };
         broadcastToAllSockets(data);
     });
@@ -446,7 +462,7 @@ wss.on("connection", function connection(ws) {
                 let data = {
                     resource: "message",
                     action: "list",
-                    data: messages 
+                    data: messages
                 };
                 ws.send(JSON.stringify(data));
             });
@@ -463,4 +479,3 @@ wss.on("connection", function connection(ws) {
         }
     });
 });
-
