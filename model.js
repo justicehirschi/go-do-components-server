@@ -101,8 +101,7 @@ const activitySchema = new mongoose.Schema ({
         required: [true, "Event place is required"]
     },
     age: {
-        type: String,
-        required: [true, "Event age range is required"]
+        type: String
     },
     description: {
         type: String,
