@@ -16,8 +16,8 @@ server.use(function(request, response, next) {
 });
 
 server.options("*", function(request, response, next) {
-    response.header("Access-Control-Allow-Headers", "Content-type");
-    response.header("Access-Control-Allow-Methods", "DELETE");
+    response.header("Access-Control-Allow-Headers", "Content-Type");
+    response.header("Access-Control-Allow-Methods", "GET, POST, DELETE, PUT, OPTIONS");
     next();
 });
 
@@ -326,7 +326,10 @@ server.delete("/logout", function(request, response) {
 
 //Users endpoints
 
+//create user
 server.post("/users", function(request, response){
+    console.log("BODY:", request.body);
+
     let user = model.Users({
         first_name: request.body.first_name,
         last_name: request.body.last_name,
@@ -362,6 +365,7 @@ server.post("/users", function(request, response){
     });
 });
 
+//get users user_name
 server.get("/users/user_name", (request, response) => {
     if (!request.user) {
         response.sendStatus(401);
@@ -370,6 +374,25 @@ server.get("/users/user_name", (request, response) => {
     response.json(request.user.user_name);
 });
 
+//get users city
+server.get("/users/city", (request, response) => {
+    if (!request.user) {
+        response.sendStatus(401);
+        return;
+    }
+    response.json(request.user.city);
+});
+
+//get users messages
+server.get("/users/messages", (request, response) => {
+    if(!request.user) {
+        response.sendStatus(401);
+        return;
+    }
+    response.json(request.user.messages);
+});
+
+//get user by user_name
 server.get("/users/:user_name", function(request, response){
     if (!request.user){
         response.sendStatus(401);
@@ -389,21 +412,55 @@ server.get("/users/:user_name", function(request, response){
     }
 });
 
-server.get("/users/city", (request, response) => {
-    console.log(request.user);
-    if (!request.user) {
-        response.sendStatus(401);
-        return;
-    }
-    response.json(request.user.city);
-});
-
+//delete user by id (needs to be changed to by user_name)
 server.delete("/users/:id", function(request, response){
     model.Users.findByIdAndDelete(request.params.id).then(function(){
         response.status(204);
         response.send();
     }).catch(function(error){
         response.status(400).json({msg: error.message});
+    });
+});
+
+//edit user by user_name
+server.put("/users/:user_name", function(request, response) { 
+    if(!request.user) {
+        response.sendStatus(401);
+        return;
+    }  
+    model.Users.findOne({'user_name': request.params.user_name}).then(function(user) {
+        if(user == "null") {
+            response.sendStatus(404);
+            response.json({msg: `There is no user with the user_name of ${request.params.user_name}`});
+        } else {
+            console.log("BODY:", request.body.user);
+            user.first_name = request.body.user.first_name;
+            user.last_name = request.body.user.last_name;
+            user.email = request.body.user.email;
+            user.age = request.body.user.age;
+            user.city = request.body.user.city;
+            user.messages = request.body.user.messages;
+            user.user_chats = request.body.user.chats;
+
+            user.setEncryptedPassword(request.body.user.password, function () {
+                user.save().then(function () {
+                    response.sendStatus(200);
+                }, function (error) {
+                    if (error.errors) {
+                        var messages = {};
+                        for (var e in error.errors) {
+                            messages[e] = error.errors[e].message;
+                        }
+
+                        console.log("Error Editing User.", messages);
+                        response.status(422).json(messages);
+                    } else {
+                        console.log("Unexpected Error saving User");
+                        response.sendStatus(500);
+                    }
+                });
+            });
+        }
     });
 });
 
@@ -417,18 +474,67 @@ server.put("/users/:user_name", function(request, response) {
             response.sendStatus(404);
             response.json({msg: `There is no user with the user_name of ${request.params.user_name}`});
         } else {
-            user.first_name = request.body.first_name;
-            user.last_name = request.body.last_name;
-            user.email = request.body.email;
-            user.password = request.body.password;
-            user.age = request.body.age;
-            user.city = request.body.city;
-            user.messages = request.body.message;
-            user.user_chats = request.body.chats;
+            console.log("BODY:", request.body.user);
+            user.first_name = request.body.user.first_name;
+            user.last_name = request.body.user.last_name;
+            user.email = request.body.user.email;
+            user.age = request.body.user.age;
+            user.city = request.body.user.city;
+            user.messages = request.body.user.messages;
+            user.user_chats = request.body.user.chats;
 
+            user.setEncryptedPassword(request.body.user.password, function () {
+                user.save().then(function () {
+                    response.sendStatus(200);
+                }, function (error) {
+                    if (error.errors) {
+                        var messages = {};
+                        for (var e in error.errors) {
+                            messages[e] = error.errors[e].message;
+                        }
+
+                        console.log("Error Editing User.", messages);
+                        response.status(422).json(messages);
+                    } else {
+                        console.log("Unexpected Error saving User");
+                        response.sendStatus(500);
+                    }
+                });
+            });
+        }
+    });
+});
+
+// edit user messages by user_name
+server.put("/users/:user_name/messages", function (request, response) {
+    if (!request.user) {
+        response.sendStatus(401);
+        return;
+    }
+    model.Users.findOne({'user_name': request.params.user_name}).then(function (user) {
+        if (user == "null") {
+            response.sendStatus(404);
+            response.json({
+                msg: `There is no user with the user_name of ${request.params.user_name}`
+            });
+        } else {
+            user.messages.push(request.body.new_message);
             user.save().then(function () {
-                console.log("User with id:", request.params.id, "edited.");
                 response.sendStatus(200);
+                sendAllMessagesToAllSockets(request.params.user_name);
+            }, function (error) {
+                if (error.errors) {
+                    var messages = {};
+                    for (var e in error.errors) {
+                        messages[e] = error.errors[e].message;
+                    }
+
+                    console.log("Error Editing User.", messages);
+                    response.status(422).json(messages);
+                } else {
+                    console.log("Unexpected Error saving User");
+                    response.sendStatus(500);
+                }
             });
         }
     });
@@ -451,12 +557,12 @@ var broadcastToAllSockets = function(data) {
     });
 };
 
-var sendAllMessagesToAllSockets = function() {
-    model.Messages.find({}).then(function (messages) {
+var sendAllMessagesToAllSockets = function(user_name) {
+    model.Users.findOne({'user_name': user_name}).then(function (user) {
         let data = {
             resource: "message",
             action: "list",
-            data: messages
+            data: user.messages
         };
         broadcastToAllSockets(data);
     });
@@ -469,24 +575,24 @@ wss.on("connection", function connection(ws) {
 
         if(data.action == "list" && data.resource == "message") {
             // Send list of messages
-            model.Messages.find({}).then(function (messages) {
+            model.Messages.findOne({'user_name': data.user_name}).then(function (user) {
                 let data = {
                     resource: "message",
                     action: "list",
-                    data: messages
+                    data: user.messages
                 };
                 ws.send(JSON.stringify(data));
             });
         }
-        if(data.action == "delete" && data.resource == "message") {
-            model.Messages.find({}).then(function (messages) {
-                let data = {
-                    resource: "message",
-                    action: "deleteAll",
-                    data: messages
-                };
-                ws.send(JSON.stringify(data));
-            });
-        }
+        // if(data.action == "delete" && data.resource == "message") {
+        //     model.Messages.find({}).then(function (messages) {
+        //         let data = {
+        //             resource: "message",
+        //             action: "deleteAll",
+        //             data: messages
+        //         };
+        //         ws.send(JSON.stringify(data));
+        //     });
+        // }
     });
 });
