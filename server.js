@@ -370,6 +370,15 @@ server.get("/users/messages", (request, response) => {
     response.json(request.user.messages);
 });
 
+//get users user_chats
+server.get("/users/user_chats", (request, response) => {
+    if (!request.user) {
+        response.sendStatus(401);
+        return;
+    }
+    response.json(request.user.users_chats);
+});
+
 //get user by user_name
 server.get("/users/:user_name", function(request, response){
     if (!request.user){
@@ -453,6 +462,8 @@ server.put("/users/:user_name/messages", function (request, response) {
                 msg: `There is no user with the user_name of ${request.params.user_name}`
             });
         } else {
+            console.log(request.body.receiving_chat_users);
+            user.users_chats.push(request.body.receiving_chat_users);
             user.messages.push(request.body.new_message);
             user.save().then(function () {
                 response.sendStatus(200);
