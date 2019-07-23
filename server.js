@@ -207,43 +207,23 @@ server.delete("/activities/:id", function(request, response){
     });
 });
 
-server.put("/activities/:id", function(request, response){
+// Add attendee to an activity
+server.put("/activities/:id/add_attendee", function(request, response){
     model.Activities.findById(request.params.id).then(function(activity){
         if (activity == null){
             response.status(404);
             response.json({msg: `There is no event with the id of ${request.params.id}`});
         } else {
-            if (request.body.name != undefined){
-                activity.name = request.body.name;
+            for(var attendee in activity.attendees) {
+                if(activity.attendees[attendee] == request.body.user_name) {
+                    response.status(400).json({msg: "You have already joined this event"});
+                    return;
+                }
             }
-            if (request.body.address != undefined){
-                activity.address = request.body.address;
-            }
-            if (request.body.age != undefined){
-                activity.age = request.body.age;
-            }
-            if (request.body.description != undefined){
-                activity.description = request.body.description;
-            }
-            if (request.body.main_category != undefined){
-                activity.main_category = request.body.main_category;
-            }
-            if (request.body.date != undefined){
-                activity.date = request.body.date;
-            }
-            if (request.body.message_group != undefined){
-                activity.message_group = request.body.message_group;
-            }
-            if (request.body.included_categories != undefined){
-                activity.included_categories = request.body.included_categories;
-            }
-            if (request.body.attendees != undefined){
-                activity.attendees = request.body.attendees;
-            }
-
+            activity.attendees.push(request.body.user_name)
             activity.save().then(function(){
-                response.status(200);
-                response.json({activity: activity});
+                response.status(200).json({activity: activity});
+                sendAllEventsToAllSockets();
             });
         }
     }).catch(function(error){
@@ -328,8 +308,6 @@ server.delete("/logout", function(request, response) {
 
 //create user
 server.post("/users", function(request, response){
-    console.log("BODY:", request.body);
-
     let user = model.Users({
         first_name: request.body.first_name,
         last_name: request.body.last_name,
@@ -399,7 +377,6 @@ server.get("/users/:user_name", function(request, response){
         return;
     } else {
         model.Users.findOne({ 'user_name': request.params.user_name}).then(function(user){
-            console.log(user);
             if (user == null){
                 response.status(404);
                 response.json({msg: `There is no user with the username of ${request.params.user_name}`});
@@ -433,48 +410,6 @@ server.put("/users/:user_name", function(request, response) {
             response.sendStatus(404);
             response.json({msg: `There is no user with the user_name of ${request.params.user_name}`});
         } else {
-            console.log("BODY:", request.body.user);
-            user.first_name = request.body.user.first_name;
-            user.last_name = request.body.user.last_name;
-            user.email = request.body.user.email;
-            user.age = request.body.user.age;
-            user.city = request.body.user.city;
-            user.messages = request.body.user.messages;
-            user.user_chats = request.body.user.chats;
-
-            user.setEncryptedPassword(request.body.user.password, function () {
-                user.save().then(function () {
-                    response.sendStatus(200);
-                }, function (error) {
-                    if (error.errors) {
-                        var messages = {};
-                        for (var e in error.errors) {
-                            messages[e] = error.errors[e].message;
-                        }
-
-                        console.log("Error Editing User.", messages);
-                        response.status(422).json(messages);
-                    } else {
-                        console.log("Unexpected Error saving User");
-                        response.sendStatus(500);
-                    }
-                });
-            });
-        }
-    });
-});
-
-server.put("/users/:user_name", function(request, response) { 
-    if(!request.user) {
-        response.sendStatus(401);
-        return;
-    }  
-    model.Users.findOne({'user_name': request.params.user_name}).then(function(user) {
-        if(user == "null") {
-            response.sendStatus(404);
-            response.json({msg: `There is no user with the user_name of ${request.params.user_name}`});
-        } else {
-            console.log("BODY:", request.body.user);
             user.first_name = request.body.user.first_name;
             user.last_name = request.body.user.last_name;
             user.email = request.body.user.email;
@@ -568,6 +503,17 @@ var sendAllMessagesToAllSockets = function(user_name) {
     });
 };
 
+var sendAllEventsToAllSockets = function() {
+    model.Activities.find().then(function (activities) {
+        let data = {
+            resource: "attendee",
+            action: "list",
+            data: activities
+        }
+        broadcastToAllSockets(data);
+    });
+};
+
 wss.on("connection", function connection(ws) {
     ws.on("message", function incoming(data) {
         data = JSON.parse(data);
@@ -581,6 +527,17 @@ wss.on("connection", function connection(ws) {
                     action: "list",
                     data: user.messages
                 };
+                ws.send(JSON.stringify(data));
+            });
+        }
+        if(data.action == "list" && data.resource == "attendee") {
+            // Send list of events
+            model.Activities.find().then(function(activities) {
+                let data = {
+                    resource: "attendee",
+                    action: "list",
+                    data: activities
+                }
                 ws.send(JSON.stringify(data));
             });
         }
