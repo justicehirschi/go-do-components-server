@@ -117,25 +117,19 @@ server.put("/profiles/:user_name", function(request, response){
     model.Profiles.findOne({'user_name' : request.params.user_name}).then(function(profile){
         if (profile == null){
             response.status(404);
-            response.json({msg: `There is no profile with the id of ${request.params.user_name}`});
+            response.json({msg: `There is no profile with the user_name of ${request.params.user_name}`});
         } else {
-            if (request.body.attended_events != undefined){
-                profile.attended_events = request.body.attended_events;
+            if (request.body.profile.user_name != undefined){
+                profile.user_name = request.body.profile.user_name;
+                profile.picture = request.body.profile.picture;
+                profile.bio = request.body.profile.bio;
+                profile.attended_events = request.body.profile.attended_events;
+                profile.interests = request.body.profile.interests;
+                profile.save().then(function(){
+                    response.status(200);
+                    response.json({profile:profile});
+                });
             }
-            if (request.body.picture != undefined){
-                profile.picture = request.body.picture;
-            }
-            if (request.body.bio != undefined){
-                profile.bio = request.body.bio;
-            }
-            if (request.body.interests != undefined){
-                profile.interests = request.body.interests;
-            }
-
-            profile.save().then(function(){
-                response.status(200);
-                response.json({profile:profile});
-            });
         }
     }).catch(function(error){
         response.status(400).json({msg: error.message});
@@ -409,7 +403,7 @@ server.delete("/users/:id", function(request, response){
 });
 
 //edit user by user_name
-server.put("/users/:user_name", function(request, response) { 
+server.put("/users/:user_name", function(request, response) {
     if(!request.user) {
         response.sendStatus(401);
         return;
@@ -427,24 +421,30 @@ server.put("/users/:user_name", function(request, response) {
             user.messages = request.body.user.messages;
             user.user_chats = request.body.user.chats;
 
-            user.setEncryptedPassword(request.body.user.password, function () {
+            if(request.body.user.password != "") {
+                user.setEncryptedPassword(request.body.user.password, function () {
+                    user.save().then(function () {
+                        response.sendStatus(200);
+                    }, function (error) {
+                        if (error.errors) {
+                            var messages = {};
+                            for (var e in error.errors) {
+                                messages[e] = error.errors[e].message;
+                            }
+    
+                            console.log("Error Editing User.", messages);
+                            response.status(422).json(messages);
+                        } else {
+                            console.log("Unexpected Error saving User");
+                            response.sendStatus(500);
+                        }
+                    });
+                });
+            } else {
                 user.save().then(function () {
                     response.sendStatus(200);
-                }, function (error) {
-                    if (error.errors) {
-                        var messages = {};
-                        for (var e in error.errors) {
-                            messages[e] = error.errors[e].message;
-                        }
-
-                        console.log("Error Editing User.", messages);
-                        response.status(422).json(messages);
-                    } else {
-                        console.log("Unexpected Error saving User");
-                        response.sendStatus(500);
-                    }
                 });
-            });
+            }
         }
     });
 });
@@ -468,6 +468,47 @@ server.put("/users/:user_name/messages", function (request, response) {
             user.save().then(function () {
                 response.sendStatus(200);
                 sendAllMessagesToAllSockets(request.params.user_name);
+            }, function (error) {
+                if (error.errors) {
+                    var messages = {};
+                    for (var e in error.errors) {
+                        messages[e] = error.errors[e].message;
+                    }
+
+                    console.log("Error Editing User.", messages);
+                    response.status(422).json(messages);
+                } else {
+                    console.log("Unexpected Error saving User");
+                    response.sendStatus(500);
+                }
+            });
+        }
+    });
+});
+
+// edit users chats by user_name
+server.put("/users/:user_name/users_chats", function (request, response) {
+    if (!request.user) {
+        response.sendStatus(401);
+        return;
+    }
+    model.Users.findOne({
+        'user_name': request.params.user_name
+    }).then(function (user) {
+        if (user == "null") {
+            response.sendStatus(404);
+            response.json({
+                msg: `There is no user with the user_name of ${request.params.user_name}`
+            });
+        } else {
+            for(i = 0; i < user.users_chats.length; i++) {
+                if(user.users_chats[i] == request.body.receiving_chat_user) {
+                    response.status(400).json({msg: "Already in a chat with that user"});
+                }
+            }
+            user.users_chats.push(request.body.receiving_chat_user);
+            user.save().then(function () {
+                response.sendStatus(200);
             }, function (error) {
                 if (error.errors) {
                     var messages = {};
